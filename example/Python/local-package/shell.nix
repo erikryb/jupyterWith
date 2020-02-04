@@ -21,7 +21,7 @@ let
     directory = jupyter.mkDirectoryFromLockFile {
       lockfile = ./yarn.lock;
       packagefile = ./package.json;
-      sha256 = "14bgy5xx1sinzihhzak8dgabs0ih7ajhiahwf5frnwn45zdn78lx";
+      sha256 = "1a40kgc8kh7mzlmmswqis4wa80kvv5zv7j9g9n37ls4rw3d2plgn";
     };
   };
 in

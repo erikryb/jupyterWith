@@ -2,8 +2,6 @@
 
 let
   jupyter = pkgs.python3Packages.jupyterlab;
-
-  nodeBin = "${pkgs.nodejs}/bin/node";
 in
 
 {
@@ -58,54 +56,46 @@ in
       name = "jupyterlab-from-lockfile";
       phases = [ "installPhase" ];
       nativeBuildInputs = [ pkgs.breakpointHook ];
-      buildInputs = [ jupyter pkgs.nodejs pkgs.nodePackages.webpack pkgs.nodePackages.webpack-cli ];
+      buildInputs = with pkgs; [
+        jupyter
+        nodejs
+        nodePackages.webpack
+        nodePackages.webpack-cli
+      ];
       installPhase = ''
         export HOME=$TMP
+        export FOLDER=folder
 
-        # Make the yarn.lock file accessible to the builder.
-        mkdir -p folder/staging
-        cp ${lockfile} folder/staging/yarn.lock
-        cp ${packagefile} folder/staging/package.json
-        chmod +rw folder/staging/*
+        # Copy the JupyterLab folder.
+        mkdir -p $FOLDER
+        cp -R ${jupyter}/lib/python3.7/site-packages/jupyterlab/* $FOLDER
+        chmod -R +rw $FOLDER
 
-        # Build the folder a first time. This will download all dependencies,
-        # but the build will fail, because of hard-coded references on
-        # executables. We will patch these executables after, that's why we
-        # ignore the errors here.
-        # Install extensions.
-        #jupyter labextension install --app-dir folder --debug jupyterlab-ihaskell || true
-        jupyter lab build --app-dir folder --debug || true
+        # Overwrite yarn.lock and package.json.
+        cp ${lockfile} $FOLDER/staging/yarn.lock
+        cp ${packagefile} $FOLDER/staging/package.json
 
-        # Patch executables so they point to the correct node.
-        echo "Patching node..."
-        BIN_PATH=folder/staging/node_modules/.bin
-        for FILE in $(find $BIN_PATH -not -path $BIN_PATH); do
-          echo "Patching $FILE."
-          substituteInPlace $FILE --replace "/usr/bin/env node" ${nodeBin}
-        done
-
-        # Make files in the staging folder accessible.
-        chmod -R +rw folder
-
-        # Build once more, with patched executables.
-        jupyter lab build --app-dir folder --debug
-
-        # Rebuild once more, with jlpm.
-        chmod -R +rw folder/staging/*
-        cp ${lockfile} folder/staging/yarn.lock
-        cp ${packagefile} folder/staging/package.json
-        chmod +rw folder/staging/*
-
-        cd folder/staging
+        # Rebuild with jlpm.
+        chmod +rw $FOLDER/staging/*
+        cd $FOLDER/staging
         jlpm install
         jlpm build
         cd ../..
 
-
         # Move the Jupyter folder to the correct location.
         mkdir -p $out
-        chmod -R +rw folder/staging
-        mv folder/{extensions,schemas,settings,static,themes,staging,imports.css} $out
+        chmod -R +rw $FOLDER
+        cp -r folder/{schemas,static,themes,staging,imports.css} $out
+
+        # Install extensions in the folder.
+        mkdir -p $out/extensions
+        PREFIX=$FOLDER/staging/node_modules
+        mkdir package
+        for EXTENSION in jupyterlab-ihaskell; do
+          cp -r $PREFIX/$EXTENSION/* package
+          tar -cvzf $out/extensions/$EXTENSION-0.0.9.tgz package
+          rm -rf package/*
+        done
       '';
 
       outputHashMode = "recursive";
