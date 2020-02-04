@@ -19,8 +19,9 @@ let
     kernels = [ iPythonWithPackages ];
     extraPackages = p: [p.hello];
     directory = jupyter.mkDirectoryFromLockFile {
-      path = ./yarn.lock;
-      sha256 = "1j92qghzizl0fh03f9wxw1gcdas0zcihwi6xb28s0yckbbsy135p";
+      lockfile = ./yarn.lock;
+      packagefile = ./package.json;
+      sha256 = "14bgy5xx1sinzihhzak8dgabs0ih7ajhiahwf5frnwn45zdn78lx";
     };
   };
 in

@@ -53,24 +53,27 @@ in
     fi
   '';
 
-  mkDirectoryFromLockFile = { path, sha256 }:
+  mkDirectoryFromLockFile = { lockfile, packagefile, sha256 }:
     pkgs.stdenv.mkDerivation {
       name = "jupyterlab-from-lockfile";
       phases = [ "installPhase" ];
       nativeBuildInputs = [ pkgs.breakpointHook ];
-      buildInputs = [ jupyter pkgs.nodejs pkgs.inotifyTools ];
+      buildInputs = [ jupyter pkgs.nodejs pkgs.nodePackages.webpack pkgs.nodePackages.webpack-cli ];
       installPhase = ''
         export HOME=$TMP
 
         # Make the yarn.lock file accessible to the builder.
         mkdir -p folder/staging
-        cp ${path} folder/staging/yarn.lock
-        chmod +rw folder/staging/yarn.lock
+        cp ${lockfile} folder/staging/yarn.lock
+        cp ${packagefile} folder/staging/package.json
+        chmod +rw folder/staging/*
 
         # Build the folder a first time. This will download all dependencies,
         # but the build will fail, because of hard-coded references on
         # executables. We will patch these executables after, that's why we
         # ignore the errors here.
+        # Install extensions.
+        #jupyter labextension install --app-dir folder --debug jupyterlab-ihaskell || true
         jupyter lab build --app-dir folder --debug || true
 
         # Patch executables so they point to the correct node.
@@ -87,9 +90,22 @@ in
         # Build once more, with patched executables.
         jupyter lab build --app-dir folder --debug
 
+        # Rebuild once more, with jlpm.
+        chmod -R +rw folder/staging/*
+        cp ${lockfile} folder/staging/yarn.lock
+        cp ${packagefile} folder/staging/package.json
+        chmod +rw folder/staging/*
+
+        cd folder/staging
+        jlpm install
+        jlpm build
+        cd ../..
+
+
         # Move the Jupyter folder to the correct location.
         mkdir -p $out
-        mv folder/{extensions,schemas,settings,static,themes,imports.css} $out
+        chmod -R +rw folder/staging
+        mv folder/{extensions,schemas,settings,static,themes,staging,imports.css} $out
       '';
 
       outputHashMode = "recursive";
